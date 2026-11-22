@@ -1,0 +1,120 @@
+rules_version = '2';
+
+// Principle: clients may READ what they're meant to see and write only their OWN harmless data.
+// Everything involving money, assignment, or stats (bookings, guide counters, profile stats) is
+// written ONLY by Cloud Functions through the Admin SDK, which bypasses these rules.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+    function validRating() {
+      return request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5;
+    }
+
+    // users/{uid}: private account data (role, push tokens, who I follow).
+    // Role can't be self-assigned; only "hiker" at sign-up.
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && request.resource.data.role == "hiker"
+        && request.resource.data.keys().hasOnly(["displayName", "role", "fcmTokens", "following", "createdAt"]);
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["displayName", "fcmTokens", "following"]);
+      allow delete: if false;
+    }
+
+    // profiles/{uid}: public face of a hiker. Stats are server-written (onActivityCreated).
+    match /profiles/{uid} {
+      allow read: if signedIn();
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(["displayName", "handle", "bio", "hikes", "totalKm", "totalElevationM", "weeklyKm"])
+        && request.resource.data.hikes == 0
+        && request.resource.data.totalKm == 0
+        && request.resource.data.totalElevationM == 0
+        && request.resource.data.weeklyKm == 0;
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["displayName", "handle", "bio"]);
+      allow delete: if false;
+    }
+
+    // Trails are public to browse. Changes go through an admin or the seed script.
+    match /trails/{trailId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Guide profiles are visible to signed-in users. Counters and rating are server-only.
+    match /guides/{guideId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // Bookings: hikers see their own, guides see the ones assigned to them. Never client-written;
+    // use the createBookingCheckout callable.
+    match /bookings/{bookingId} {
+      allow read: if signedIn()
+        && (resource.data.hikerId == request.auth.uid || resource.data.guideId == request.auth.uid);
+      allow write: if false;
+    }
+
+    // Recorded hikes (GPS tracks are private: only the owner can read them).
+    match /activities/{activityId} {
+      allow read: if isOwner(resource.data.hikerId);
+      allow create: if isOwner(request.resource.data.hikerId);
+      allow update, delete: if false;
+    }
+
+    // Trail reviews and guide reviews: anyone signed in reads; you can only write as yourself.
+    // TODO: also require a completed booking before a review is accepted.
+    match /reviews/{reviewId} {
+      allow read: if signedIn();
+      allow create: if isOwner(request.resource.data.userId) && validRating()
+        && request.resource.data.comment.size() <= 1000;
+      allow update, delete: if false;
+    }
+    match /guideReviews/{reviewId} {
+      allow read: if signedIn();
+      allow create: if isOwner(request.resource.data.hikerId) && validRating()
+        && request.resource.data.comment.size() <= 1000;
+      allow update, delete: if false;
+    }
+
+    // Community feed.
+    match /posts/{postId} {
+      allow read: if signedIn();
+      allow create: if isOwner(request.resource.data.authorId)
+        && request.resource.data.likedBy.size() == 0
+        && request.resource.data.commentCount == 0
+        && request.resource.data.caption.size() <= 2000;
+      // Others may only like/unlike (touching just their own uid) and bump the comment counter.
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["likedBy", "commentCount"])
+        && request.resource.data.likedBy.toSet().difference(resource.data.likedBy.toSet()).hasOnly([request.auth.uid])
+        && resource.data.likedBy.toSet().difference(request.resource.data.likedBy.toSet()).hasOnly([request.auth.uid]);
+      allow delete: if isOwner(resource.data.authorId);
+
+      match /comments/{commentId} {
+        allow read: if signedIn();
+        allow create: if isOwner(request.resource.data.authorId)
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 500;
+        allow update: if false;
+        allow delete: if isOwner(resource.data.authorId);
+      }
+    }
+
+    match /stories/{storyId} {
+      allow read: if signedIn();
+      allow create: if isOwner(request.resource.data.authorId);
+      allow update: if false;
+      allow delete: if isOwner(resource.data.authorId);
+    }
+  }
+}
