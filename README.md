@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Akyat
 
 Guided-hike booking app for Batangas. React Native (Expo) + Firebase + PayMongo.
@@ -109,3 +110,6 @@ Photo upload to Cloud Storage, real trail data and photos, guide and barangay da
 cd mobile && npx tsc --noEmit && npm test      # 16 tests
 cd functions && npx tsc --noEmit && npm test    # 18 tests
 ```
+=======
+# AKYAT
+>>>>>>> 774448ec46180258eebca0ff6c16a0f772925859
