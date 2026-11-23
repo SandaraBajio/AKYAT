@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "Akyat",
+    "slug": "akyat",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.akyat.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Akyat uses your location to record your hike and show you on the trail map.",
+        "NSPhotoLibraryUsageDescription": "Akyat needs your photos so you can share moments and stories."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#051F20",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.akyat.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "scheme": "akyat",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Akyat uses your location to record your hike and show you on the trail map."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Akyat needs your photos so you can share moments and stories."
+        }
+      ]
+    ],
+    "backgroundColor": "#051F20"
+  }
+}
